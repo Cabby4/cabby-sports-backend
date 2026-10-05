@@ -20,7 +20,18 @@ const app = express();
 app.use(helmet());
 
 // Middleware
-app.use(cors());
+const allowedOrigins = [
+  "https://cabbysports.vercel.app",
+  "http://localhost:5173",
+];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
