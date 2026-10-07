@@ -7,6 +7,14 @@ const PORT = process.env.PORT || 4001;
 
 const startServer = async () => {
   try {
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not configured");
+    }
+
+    if (process.env.JWT_SECRET.length < 32) {
+      throw new Error("JWT_SECRET must be at least 32 characters long");
+    }
+
     await connectDB();
 
     app.listen(PORT, "0.0.0.0", () => {
