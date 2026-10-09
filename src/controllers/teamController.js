@@ -1,172 +1,3 @@
-// const Team = require("../models/Team");
-
-// // Create team
-// const createTeam = async (req, res) => {
-//   try {
-//     const team = await Team.create(req.body);
-
-//     res.status(201).json({
-//       success: true,
-//       message: "Team created successfully",
-//       data: team,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // Get all teams
-// const getAllTeams = async (req, res) => {
-//   try {
-//     const {
-//       page = 1,
-//       limit = 10,
-//       search,
-//       league,
-//       country,
-//     } = req.query;
-
-//     const currentPage = Math.max(Number(page), 1);
-//     const itemsPerPage = Math.min(Math.max(Number(limit), 1), 50);
-
-//     const skip = (currentPage - 1) * itemsPerPage;
-
-//     const filter = {};
-
-//     if (search) {
-//       filter.$or = [
-//         { name: { $regex: search, $options: "i" } },
-//         { shortName: { $regex: search, $options: "i" } },
-//       ];
-//     }
-
-//     if (league) {
-//       filter.league = league;
-//     }
-
-//     if (country) {
-//       filter.country = country;
-//     }
-
-//     const [teams, total] = await Promise.all([
-//       Team.find(filter)
-//         .sort({ name: 1 })
-//         .skip(skip)
-//         .limit(itemsPerPage),
-
-//       Team.countDocuments(filter),
-//     ]);
-
-//     const totalPages = Math.ceil(total / itemsPerPage);
-
-//     res.status(200).json({
-//       success: true,
-//       count: teams.length,
-//       total,
-//       page: currentPage,
-//       limit: itemsPerPage,
-//       totalPages,
-//       data: teams,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // Get single team
-// const getTeamById = async (req, res) => {
-//   try {
-//     const team = await Team.findById(req.params.id);
-
-//     if (!team) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Team not found",
-//       });
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       data: team,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // Update team
-// const updateTeam = async (req, res) => {
-//   try {
-//     const team = await Team.findByIdAndUpdate(
-//       req.params.id,
-//       req.body,
-//       {
-//         new: true,
-//         runValidators: true,
-//       }
-//     );
-
-//     if (!team) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Team not found",
-//       });
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Team updated successfully",
-//       data: team,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// // Delete team
-// const deleteTeam = async (req, res) => {
-//   try {
-//     const team = await Team.findByIdAndDelete(req.params.id);
-
-//     if (!team) {
-//       return res.status(404).json({
-//         success: false,
-//         message: "Team not found",
-//       });
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Team deleted successfully",
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     });
-//   }
-// };
-
-// module.exports = {
-//   createTeam,
-//   getAllTeams,
-//   getTeamById,
-//   updateTeam,
-//   deleteTeam,
-// };
-
 
 const Team = require("../models/Team");
 
@@ -428,7 +259,11 @@ const updateTeam = async (req, res) => {
 // @access  Admin
 const deleteTeam = async (req, res) => {
   try {
-    const team = await Team.findById(req.params.id);
+    const team = await Team.findByIdAndUpdate(
+      req.params.id,
+      { isActive: false },
+      { new: true }
+    );
 
     if (!team) {
       return res.status(404).json({
@@ -437,30 +272,18 @@ const deleteTeam = async (req, res) => {
       });
     }
 
-    await team.deleteOne();
-
     res.status(200).json({
       success: true,
-      message: "Team deleted successfully",
+      message: "Team deactivated successfully",
+      data: team,
     });
   } catch (error) {
-    console.error("Delete team error:", error);
-
-    if (error.name === "CastError") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid team ID",
-      });
-    }
-
     res.status(500).json({
       success: false,
-      message: "Failed to delete team",
-      error: error.message,
+      message: error.message,
     });
   }
 };
-
 
 module.exports = {
   getAllTeams,
