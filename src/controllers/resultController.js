@@ -14,6 +14,14 @@ const createResult = async (req, res) => {
       message: "Result created successfully",
       data: populatedResult,
     });
+
+    if (homeTeam === awayTeam) {
+  return res.status(400).json({
+    success: false,
+    message: "A team cannot play against itself.",
+  });
+}
+
   } catch (error) {
     res.status(500).json({
       success: false,

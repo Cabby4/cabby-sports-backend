@@ -1,26 +1,63 @@
 const Fixture = require("../models/Fixture");
 
-// Create fixture
+
+ // Create fixture
 const createFixture = async (req, res) => {
   try {
+    const {
+      homeTeam,
+      awayTeam,
+      competition,
+      matchDate,
+    } = req.body;
+
+    // 1. Prevent a team from playing against itself
+    if (homeTeam === awayTeam) {
+      return res.status(400).json({
+        success: false,
+        message: "A team cannot play against itself.",
+      });
+    }
+
+    // 2. Check for an existing fixture
+    const existingFixture = await Fixture.findOne({
+      homeTeam,
+      awayTeam,
+      competition,
+      matchDate: new Date(matchDate),
+    });
+
+    if (existingFixture) {
+      return res.status(409).json({
+        success: false,
+        message: "This fixture already exists.",
+      });
+    }
+
+    // 3. Create the fixture only after validation
     const fixture = await Fixture.create(req.body);
 
+    // 4. Populate team details
     const populatedFixture = await Fixture.findById(fixture._id)
       .populate("homeTeam", "name shortName logo")
       .populate("awayTeam", "name shortName logo");
 
-    res.status(201).json({
+    // 5. Return success
+    return res.status(201).json({
       success: true,
       message: "Fixture created successfully",
       data: populatedFixture,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Create fixture error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Failed to create fixture.",
     });
   }
 };
+
 
 // Get all fixtures
 const getAllFixtures = async (req, res) => {
