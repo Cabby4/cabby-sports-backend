@@ -174,8 +174,7 @@ const createTeam = async (req, res) => {
 
 
 // @desc    Update team
-// @route   PATCH /api/teams/:id
-// @access  Admin
+// @route   PUT /api/teams/:id
 const updateTeam = async (req, res) => {
   try {
     const team = await Team.findById(req.params.id);
@@ -185,21 +184,6 @@ const updateTeam = async (req, res) => {
         success: false,
         message: "Team not found",
       });
-    }
-
-    // If name is being changed, check for duplicate
-    if (req.body.name && req.body.name !== team.name) {
-      const existingTeam = await Team.findOne({
-        name: { $regex: `^${req.body.name}$`, $options: "i" },
-        _id: { $ne: req.params.id },
-      });
-
-      if (existingTeam) {
-        return res.status(409).json({
-          success: false,
-          message: "A team with this name already exists",
-        });
-      }
     }
 
     const allowedFields = [
@@ -215,17 +199,80 @@ const updateTeam = async (req, res) => {
       "isActive",
     ];
 
+    // Reject fields that cannot be updated through this endpoint
+    const invalidFields = Object.keys(req.body).filter(
+      (field) => !allowedFields.includes(field)
+    );
+
+    if (invalidFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "One or more fields cannot be updated.",
+        fields: invalidFields,
+      });
+    }
+
+    // Validate team name
+    if (req.body.name !== undefined) {
+      if (
+        typeof req.body.name !== "string" ||
+        !req.body.name.trim()
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Team name must be a non-empty string.",
+        });
+      }
+
+      const normalizedName = req.body.name.trim();
+
+      const existingTeam = await Team.findOne({
+        name: {
+          $regex: `^${normalizedName.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          )}$`,
+          $options: "i",
+        },
+        _id: { $ne: team._id },
+      });
+
+      if (existingTeam) {
+        return res.status(409).json({
+          success: false,
+          message: "A team with this name already exists.",
+        });
+      }
+
+      team.name = normalizedName;
+    }
+
+    // Validate isActive
+    if (
+      req.body.isActive !== undefined &&
+      typeof req.body.isActive !== "boolean"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "isActive must be true or false.",
+      });
+    }
+
+    // Update the remaining permitted fields
     allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) {
+      if (
+        field !== "name" &&
+        req.body[field] !== undefined
+      ) {
         team[field] = req.body[field];
       }
     });
 
     const updatedTeam = await team.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Team updated successfully",
+      message: "Team updated successfully.",
       data: updatedTeam,
     });
   } catch (error) {
@@ -234,21 +281,27 @@ const updateTeam = async (req, res) => {
     if (error.name === "CastError") {
       return res.status(400).json({
         success: false,
-        message: "Invalid team ID",
+        message: "Invalid team data or ID.",
+      });
+    }
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        success: false,
+        message: "Please check the submitted team details.",
       });
     }
 
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: "A team with this name already exists",
+        message: "A team with this name already exists.",
       });
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to update team",
-      error: error.message,
+      message: "Failed to update team.",
     });
   }
 };

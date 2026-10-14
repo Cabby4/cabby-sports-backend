@@ -5,6 +5,7 @@ const User = require("../models/User");
 
 // Generate JWT
 const generateToken = (userId) => {
+
   return jwt.sign(
     {
       id: userId,
@@ -18,6 +19,7 @@ const generateToken = (userId) => {
 
 // Register user
 const register = async (req, res) => {
+
   try {
     const { name, email, password } = req.body;
 
@@ -69,6 +71,7 @@ const register = async (req, res) => {
 
 // Login user
 const login = async (req, res) => {
+
   try {
     const { email, password } = req.body;
 
@@ -129,6 +132,7 @@ const login = async (req, res) => {
 };
 
 const getMe = async (req, res) => {
+  
   try {
     const user = await User.findById(req.user.id).select("-password");
 

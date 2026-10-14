@@ -58,4 +58,17 @@ fixtureSchema.index({ competition: 1 });
 fixtureSchema.index({ homeTeam: 1 });
 fixtureSchema.index({ awayTeam: 1 });
 
+fixtureSchema.index(
+  {
+    homeTeam: 1,
+    awayTeam: 1,
+    competition: 1,
+    matchDate: 1,
+  },
+  {
+    unique: true,
+    name: "unique_fixture_exact_match",
+  }
+);
+
 module.exports = mongoose.model("Fixture", fixtureSchema);

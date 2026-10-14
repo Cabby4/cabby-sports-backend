@@ -1,34 +1,69 @@
 const Result = require("../models/Result");
 
-// Create result
+
 const createResult = async (req, res) => {
   try {
+    const {
+      homeTeam,
+      awayTeam,
+      competition,
+      matchDate,
+    } = req.body;
+
+    // Prevent a team from playing against itself
+    if (homeTeam === awayTeam) {
+      return res.status(400).json({
+        success: false,
+        message: "A team cannot play against itself.",
+      });
+    }
+
+    // Check for an existing result
+    const existingResult = await Result.findOne({
+      homeTeam,
+      awayTeam,
+      competition,
+      matchDate: new Date(matchDate),
+    });
+
+    if (existingResult) {
+      return res.status(409).json({
+        success: false,
+        message: "This match result already exists.",
+      });
+    }
+
+    // Create the result
     const result = await Result.create(req.body);
 
+    // Return the result with team details
     const populatedResult = await Result.findById(result._id)
       .populate("homeTeam", "name shortName logo")
       .populate("awayTeam", "name shortName logo");
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: "Result created successfully",
+      message: "Result created successfully.",
       data: populatedResult,
     });
-
-    if (homeTeam === awayTeam) {
-  return res.status(400).json({
-    success: false,
-    message: "A team cannot play against itself.",
-  });
-}
-
   } catch (error) {
-    res.status(500).json({
+    console.error("Create result error:", error);
+
+    // Handle database-level duplicate protection
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "This match result already exists.",
+      });
+    }
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Failed to create result.",
     });
   }
 };
+
 
 // Get all results
 const getAllResults = async (req, res) => {

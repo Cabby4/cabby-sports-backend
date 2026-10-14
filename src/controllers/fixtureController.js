@@ -48,14 +48,24 @@ const createFixture = async (req, res) => {
       message: "Fixture created successfully",
       data: populatedFixture,
     });
-  } catch (error) {
-    console.error("Create fixture error:", error);
+  } 
+  
+  catch (error) {
+  console.error("Create fixture error:", error);
 
-    return res.status(500).json({
+  if (error.code === 11000) {
+    return res.status(409).json({
       success: false,
-      message: "Failed to create fixture.",
+      message: "This fixture already exists.",
     });
   }
+
+  return res.status(500).json({
+    success: false,
+    message: "Failed to create fixture.",
+  });
+}
+
 };
 
 
