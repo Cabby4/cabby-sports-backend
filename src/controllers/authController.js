@@ -1,5 +1,8 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+
+const transporter = require("../config/mailer");
 
 const User = require("../models/User");
 
@@ -155,8 +158,145 @@ const getMe = async (req, res) => {
   }
 };
 
+const forgotPassword = async (req, res) => {
+  try {
+    const email = req.body.email?.trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const genericMessage =
+      "If an account exists with that email, a password reset link will be sent.";
+
+    const user = await User.findOne({ email });
+
+    // Do not reveal whether an account exists.
+    if (!user || !user.isActive) {
+      return res.status(200).json({
+        success: true,
+        message: genericMessage,
+      });
+    }
+
+    // Generate a secure token and store only its hash.
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    user.resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await user.save();
+
+    const resetUrl =
+      `${process.env.FRONTEND_URL}/admin/reset-password/${resetToken}`;
+
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: "Cabby Sports Admin Password Reset",
+        text: `You requested a password reset. Open this link within 15 minutes:\n\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
+        html: `
+          <h2>Cabby Sports Password Reset</h2>
+          <p>You requested a password reset for your account.</p>
+          <p>This link expires in 15 minutes and can only be used once.</p>
+          <p><a href="${resetUrl}">Reset Your Password</a></p>
+          <p>If you did not request this, you can ignore this email.</p>
+        `,
+      });
+    } catch (emailError) {
+      // Invalidate the token if the email could not be sent.
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save();
+
+      throw emailError;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: genericMessage,
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to process your request right now.",
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Token and new password are required",
+      });
+    }
+
+    if (typeof password !== "string" || password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters long",
+      });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: new Date() },
+      isActive: true,
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "This reset link is invalid or has expired.",
+      });
+    }
+
+    user.password = await bcrypt.hash(password, 12);
+
+    // Make the token single-use.
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successful. You can now log in.",
+    });
+  } catch (error) {
+    console.error("Reset password error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to reset your password right now.",
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
+  resetPassword,
+  forgotPassword,
 };
