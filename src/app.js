@@ -56,6 +56,8 @@ app.use("/api/teams", teamRoutes);
 app.use("/api/fixtures", fixtureRoutes);
 app.use("/api/results", resultRoutes);
 app.use("/api/transfers", transferRoutes);
+app.use("/api/images", require("./routes/imageRoutes"));
+
 
 app.use(notFound);
 app.use(errorHandler);
