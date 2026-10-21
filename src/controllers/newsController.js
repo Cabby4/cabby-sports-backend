@@ -1,3 +1,4 @@
+
 const News = require("../models/News");
 
 // Create news
@@ -11,7 +12,7 @@ const createNews = async (req, res) => {
       data: news,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(400).json({
       success: false,
       message: error.message,
     });
@@ -27,32 +28,52 @@ const getAllNews = async (req, res) => {
       search,
       category,
       featured,
+      section,
+      competition,
+      country,
+      grassrootsType,
     } = req.query;
 
-    const currentPage = Math.max(Number(page), 1);
-    const itemsPerPage = Math.min(Math.max(Number(limit), 1), 50);
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const itemsPerPage = Math.min(
+      Math.max(Number(limit) || 10, 1),
+      50
+    );
 
     const skip = (currentPage - 1) * itemsPerPage;
-
     const filter = {};
 
     // Search by title, summary or content
     if (search) {
+      const searchRegex = {
+        $regex: search,
+        $options: "i",
+      };
+
       filter.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { summary: { $regex: search, $options: "i" } },
-        { content: { $regex: search, $options: "i" } },
+        { title: searchRegex },
+        { summary: searchRegex },
+        { content: searchRegex },
       ];
     }
 
-    // Filter by category
-    if (category) {
-      filter.category = category;
-    }
+    // Existing filters
+    if (category) filter.category = category;
 
-    // Filter featured articles
     if (featured !== undefined) {
       filter.featured = featured === "true";
+    }
+
+    // Africa Football and Grassroots filters
+    if (section) filter.section = section;
+    if (competition) filter.competition = competition;
+
+    if (country) {
+      filter.country = country.toLowerCase();
+    }
+
+    if (grassrootsType) {
+      filter.grassrootsType = grassrootsType;
     }
 
     const [news, total] = await Promise.all([
@@ -64,15 +85,13 @@ const getAllNews = async (req, res) => {
       News.countDocuments(filter),
     ]);
 
-    const totalPages = Math.ceil(total / itemsPerPage);
-
     res.status(200).json({
       success: true,
       count: news.length,
       total,
       page: currentPage,
       limit: itemsPerPage,
-      totalPages,
+      totalPages: Math.ceil(total / itemsPerPage),
       data: news,
     });
   } catch (error) {
@@ -132,7 +151,7 @@ const updateNews = async (req, res) => {
       data: news,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(400).json({
       success: false,
       message: error.message,
     });

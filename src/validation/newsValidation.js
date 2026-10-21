@@ -1,4 +1,30 @@
+
 const Joi = require("joi");
+
+const sectionField = Joi.string().valid(
+  "football",
+  "africa",
+  "grassroots"
+);
+
+const competitionField = Joi.string().valid(
+  "caf-champions-league",
+  "caf-confederation-cup",
+  "domestic-league",
+  "other"
+);
+
+const countryField = Joi.string()
+  .trim()
+  .lowercase()
+  .max(100);
+
+const grassrootsTypeField = Joi.string().valid(
+  "news",
+  "academy",
+  "tournament",
+  "player-profile"
+);
 
 const createNewsSchema = Joi.object({
   title: Joi.string().trim().min(5).max(200).required(),
@@ -23,6 +49,15 @@ const createNewsSchema = Joi.object({
       "Other"
     )
     .required(),
+
+  // New fields
+  section: sectionField.optional(),
+
+  competition: competitionField.optional(),
+
+  country: countryField.optional(),
+
+  grassrootsType: grassrootsTypeField.optional(),
 
   author: Joi.string().trim().optional(),
 
@@ -58,6 +93,15 @@ const updateNewsSchema = Joi.object({
       "Other"
     )
     .optional(),
+
+  // New fields
+  section: sectionField.optional(),
+
+  competition: competitionField.optional(),
+
+  country: countryField.optional(),
+
+  grassrootsType: grassrootsTypeField.optional(),
 
   author: Joi.string().trim().optional(),
 
