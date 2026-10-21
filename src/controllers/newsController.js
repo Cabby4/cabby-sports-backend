@@ -1,10 +1,22 @@
 
 const News = require("../models/News");
 
+      const cleanNewsPayload = (payload) => {
+        const cleaned = { ...payload };
+
+        ["competition", "country", "grassrootsType"].forEach((field) => {
+          if (cleaned[field] === "") {
+            delete cleaned[field];
+          }
+        });
+
+        return cleaned;
+      };
+
 // Create news
 const createNews = async (req, res) => {
   try {
-    const news = await News.create(req.body);
+    const news = await News.create(cleanNewsPayload(req.body));
 
     res.status(201).json({
       success: true,
@@ -129,14 +141,15 @@ const getNewsById = async (req, res) => {
 // Update news
 const updateNews = async (req, res) => {
   try {
+  
     const news = await News.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+  req.params.id,
+  cleanNewsPayload(req.body),
+  {
+    new: true,
+    runValidators: true,
+  }
+);
 
     if (!news) {
       return res.status(404).json({
