@@ -312,11 +312,7 @@ const updateTeam = async (req, res) => {
 // @access  Admin
 const deleteTeam = async (req, res) => {
   try {
-    const team = await Team.findByIdAndUpdate(
-      req.params.id,
-      { isActive: false },
-      { new: true }
-    );
+    const team = await Team.findByIdAndDelete(req.params.id);
 
     if (!team) {
       return res.status(404).json({
@@ -327,8 +323,7 @@ const deleteTeam = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "Team deactivated successfully",
-      data: team,
+      message: "Team deleted successfully",
     });
   } catch (error) {
     res.status(500).json({
@@ -337,6 +332,7 @@ const deleteTeam = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   getAllTeams,

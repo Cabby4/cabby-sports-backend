@@ -6,6 +6,8 @@ const morgan = require("morgan");
 const { errorHandler } = require("./middlewares/errorMiddleware");
 const { notFound } = require("./middlewares/notFoundMiddleware");
 
+const uploadRoutes = require("./routes/UploadRoutes");
+
 const authRoutes = require("./routes/authRoutes");
 const newsRoutes = require("./routes/newsRoutes");
 const teamRoutes = require("./routes/teamRoutes");
@@ -56,8 +58,10 @@ app.use("/api/teams", teamRoutes);
 app.use("/api/fixtures", fixtureRoutes);
 app.use("/api/results", resultRoutes);
 app.use("/api/transfers", transferRoutes);
+
 app.use("/api/images", require("./routes/imageRoutes"));
 
+app.use("/api/upload", uploadRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
