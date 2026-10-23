@@ -6,7 +6,7 @@ const morgan = require("morgan");
 const { errorHandler } = require("./middlewares/errorMiddleware");
 const { notFound } = require("./middlewares/notFoundMiddleware");
 
-const uploadRoutes = require("./routes/UploadRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 const authRoutes = require("./routes/authRoutes");
 const newsRoutes = require("./routes/newsRoutes");
