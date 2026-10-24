@@ -187,17 +187,18 @@ const updateTeam = async (req, res) => {
     }
 
     const allowedFields = [
-      "name",
-      "shortName",
-      "logo",
-      "country",
-      "league",
-      "stadium",
-      "founded",
-      "description",
-      "website",
-      "isActive",
-    ];
+  "name",
+  "shortName",
+  "logo",
+  "country",
+  "league",
+  "stadium",
+  "founded",
+  "description",
+  "website",
+  "isActive",
+  "apiFootballId",
+];
 
     // Reject fields that cannot be updated through this endpoint
     const invalidFields = Object.keys(req.body).filter(
@@ -246,6 +247,42 @@ const updateTeam = async (req, res) => {
 
       team.name = normalizedName;
     }
+
+    // Validate API-Football team ID
+if (req.body.apiFootballId !== undefined) {
+  const apiId = req.body.apiFootballId;
+
+  if (
+    apiId !== null &&
+    apiId !== "" &&
+    (!Number.isInteger(Number(apiId)) || Number(apiId) <= 0)
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "apiFootballId must be a positive integer or null.",
+    });
+  }
+
+  team.apiFootballId =
+    apiId === null || apiId === ""
+      ? undefined
+      : Number(apiId);
+
+  // Check whether another team already uses this ID
+  if (team.apiFootballId !== undefined) {
+    const existingMapping = await Team.findOne({
+      apiFootballId: team.apiFootballId,
+      _id: { $ne: team._id },
+    });
+
+    if (existingMapping) {
+      return res.status(409).json({
+        success: false,
+        message: "This API-Football team ID is already assigned to another team.",
+      });
+    }
+  }
+}
 
     // Validate isActive
     if (

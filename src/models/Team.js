@@ -10,6 +10,12 @@ const teamSchema = new mongoose.Schema(
       unique: true,
     },
 
+    apiFootballId: {
+      type: Number,
+      unique: true,
+      sparse: true,
+     },
+
     shortName: {
       type: String,
       required: true,

@@ -14,6 +14,12 @@ const resultSchema = new mongoose.Schema(
       required: true,
     },
 
+    apiFootballFixtureId: {
+      type: Number,
+      unique: true,
+      sparse: true,
+    },
+
     competition: {
       type: String,
       required: true,
