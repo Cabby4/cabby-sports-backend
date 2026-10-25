@@ -4,7 +4,6 @@ const Team = require("../models/Team");
 const Fixture = require("../models/Fixture");
 const Result = require("../models/Result");
 
-// Convert API-Football status codes to Cabby Sports fixture statuses.
 function mapFixtureStatus(short) {
   if (short === "PST") return "Postponed";
 
@@ -15,52 +14,84 @@ function mapFixtureStatus(short) {
   return "Scheduled";
 }
 
-// Import fixtures for a specific league and season.
+// Use the selected season's August-to-May date range.
+function getSeasonDates(season) {
+  return {
+    from: `${season}-08-01`,
+    to: `${Number(season) + 1}-05-31`,
+  };
+}
+
+async function getLeagueFixtures(leagueId, season) {
+  const dates = getSeasonDates(season);
+
+  return footballApiRequest("/fixtures", {
+    league: Number(leagueId),
+    season: Number(season),
+    ...dates,
+  });
+}
+
+async function findMappedTeams(item) {
+  const homeApiId = item.teams?.home?.id;
+  const awayApiId = item.teams?.away?.id;
+
+  if (!homeApiId || !awayApiId) return null;
+
+  const [homeTeam, awayTeam] = await Promise.all([
+    Team.findOne({ apiFootballId: homeApiId, isActive: true }),
+    Team.findOne({ apiFootballId: awayApiId, isActive: true }),
+  ]);
+
+  if (!homeTeam || !awayTeam) return null;
+
+  return { homeTeam, awayTeam };
+}
+
+function getMatchweek(round) {
+  if (!round) return undefined;
+
+  return Number(String(round).match(/\d+/)?.[0]) || undefined;
+}
+
 async function syncFixtures({ leagueId, season }) {
   if (
     !Number.isInteger(Number(leagueId)) ||
-    !Number.isInteger(Number(season))
+    Number(leagueId) <= 0 ||
+    !Number.isInteger(Number(season)) ||
+    Number(season) < 2000 ||
+    Number(season) > 2100
   ) {
     throw new Error("Valid leagueId and season are required.");
   }
 
-  const response = await footballApiRequest("/fixtures", {
-    league: Number(leagueId),
-    season: Number(season),
-    from: "2024-08-01",
-    to: "2025-05-31",
-  });
+  const response = await getLeagueFixtures(leagueId, season);
+  const items = response.response || [];
+  let importedOrUpdated = 0;
+  const skippedDetails = [];
 
-  const imported = [];
-  const skipped = [];
-
-  for (const item of response.response || []) {
+  for (const item of items) {
     const apiFixtureId = item.fixture?.id;
-    const homeApiId = item.teams?.home?.id;
-    const awayApiId = item.teams?.away?.id;
 
-    if (!apiFixtureId || !homeApiId || !awayApiId) {
-      skipped.push({
+    if (!apiFixtureId || !item.fixture?.date) {
+      skippedDetails.push({
         fixtureId: apiFixtureId || null,
-        reason: "Missing API IDs",
+        reason: "Missing fixture ID or date",
       });
       continue;
     }
 
-    // Only use teams already mapped in Cabby Sports.
-    const [homeTeam, awayTeam] = await Promise.all([
-      Team.findOne({ apiFootballId: homeApiId, isActive: true }),
-      Team.findOne({ apiFootballId: awayApiId, isActive: true }),
-    ]);
+    const teams = await findMappedTeams(item);
 
-    if (!homeTeam || !awayTeam) {
-      skipped.push({
+    if (!teams) {
+      skippedDetails.push({
         fixtureId: apiFixtureId,
-        reason:
-          "Both teams must be mapped to existing Cabby Sports teams first",
+        reason: "Teams are not both mapped to existing Cabby Sports teams",
       });
       continue;
     }
+
+    const { homeTeam, awayTeam } = teams;
 
     const fixtureData = {
       homeTeam: homeTeam._id,
@@ -69,9 +100,7 @@ async function syncFixtures({ leagueId, season }) {
       matchDate: new Date(item.fixture.date),
       venue: item.fixture.venue?.name || "",
       status: mapFixtureStatus(item.fixture.status?.short),
-      matchweek: item.league?.round
-        ? Number(String(item.league.round).match(/\d+/)?.[0]) || undefined
-        : undefined,
+      matchweek: getMatchweek(item.league?.round),
       description: "Fixture data synced from API-Football",
     };
 
@@ -83,102 +112,87 @@ async function syncFixtures({ leagueId, season }) {
       Object.assign(fixture, fixtureData);
       await fixture.save();
     } else {
-      // Do not replace or duplicate an equivalent manually entered fixture.
-      const existingManualFixture = await Fixture.findOne({
+      const manualFixture = await Fixture.findOne({
         homeTeam: homeTeam._id,
         awayTeam: awayTeam._id,
         competition: fixtureData.competition,
         matchDate: fixtureData.matchDate,
       });
 
-      if (existingManualFixture) {
-        skipped.push({
+      if (manualFixture) {
+        skippedDetails.push({
           fixtureId: apiFixtureId,
-          reason:
-            "An equivalent manual fixture already exists; it was left unchanged",
+          reason: "Equivalent manual fixture left unchanged",
         });
         continue;
       }
 
-      fixture = await Fixture.create({
+      await Fixture.create({
         ...fixtureData,
         apiFootballFixtureId: apiFixtureId,
       });
     }
 
-    imported.push(fixture._id.toString());
+    importedOrUpdated++;
   }
 
   return {
-    requested: (response.response || []).length,
-    importedOrUpdated: imported.length,
-    skipped: skipped.length,
-    skippedDetails: skipped,
+    requested: items.length,
+    importedOrUpdated,
+    skipped: skippedDetails.length,
+    skippedDetails,
   };
 }
 
-// Import finished matches as results.
 async function syncResults({ leagueId, season }) {
   if (
     !Number.isInteger(Number(leagueId)) ||
-    !Number.isInteger(Number(season))
+    Number(leagueId) <= 0 ||
+    !Number.isInteger(Number(season)) ||
+    Number(season) < 2000 ||
+    Number(season) > 2100
   ) {
     throw new Error("Valid leagueId and season are required.");
   }
 
-  const response = await footballApiRequest("/fixtures", {
-    league: Number(leagueId),
-    season: Number(season),
-    from: "2024-08-01",
-    to: "2025-05-31",
-  });
+  const response = await getLeagueFixtures(leagueId, season);
+  const items = response.response || [];
+  let importedOrUpdated = 0;
+  const skippedDetails = [];
 
-  const imported = [];
-  const skipped = [];
-
-  for (const item of response.response || []) {
+  for (const item of items) {
     const apiFixtureId = item.fixture?.id;
     const status = item.fixture?.status?.short;
 
     if (!apiFixtureId || !["FT", "AET", "PEN"].includes(status)) {
-      skipped.push({
-        fixtureId: apiFixtureId || null,
-        reason: "Match is not confirmed finished",
-      });
       continue;
     }
 
-    const homeApiId = item.teams?.home?.id;
-    const awayApiId = item.teams?.away?.id;
     const homeScore = item.goals?.home;
     const awayScore = item.goals?.away;
 
     if (
-      !homeApiId ||
-      !awayApiId ||
       !Number.isInteger(homeScore) ||
       !Number.isInteger(awayScore)
     ) {
-      skipped.push({
+      skippedDetails.push({
         fixtureId: apiFixtureId,
-        reason: "Missing team IDs or final scores",
+        reason: "Missing final scores",
       });
       continue;
     }
 
-    const [homeTeam, awayTeam] = await Promise.all([
-      Team.findOne({ apiFootballId: homeApiId, isActive: true }),
-      Team.findOne({ apiFootballId: awayApiId, isActive: true }),
-    ]);
+    const teams = await findMappedTeams(item);
 
-    if (!homeTeam || !awayTeam) {
-      skipped.push({
+    if (!teams) {
+      skippedDetails.push({
         fixtureId: apiFixtureId,
-        reason:
-          "Both teams must be mapped to existing Cabby Sports teams first",
+        reason: "Teams are not both mapped to existing Cabby Sports teams",
       });
       continue;
     }
+
+    const { homeTeam, awayTeam } = teams;
 
     const resultData = {
       homeTeam: homeTeam._id,
@@ -189,9 +203,7 @@ async function syncResults({ leagueId, season }) {
       awayScore,
       venue: item.fixture.venue?.name || "",
       status: "Completed",
-      matchweek: item.league?.round
-        ? Number(String(item.league.round).match(/\d+/)?.[0]) || undefined
-        : undefined,
+      matchweek: getMatchweek(item.league?.round),
       description: "Result data synced from API-Football",
     };
 
@@ -203,37 +215,35 @@ async function syncResults({ leagueId, season }) {
       Object.assign(result, resultData);
       await result.save();
     } else {
-      // Leave existing manually entered results unchanged.
-      const existingManualResult = await Result.findOne({
+      const manualResult = await Result.findOne({
         homeTeam: homeTeam._id,
         awayTeam: awayTeam._id,
         competition: resultData.competition,
         matchDate: resultData.matchDate,
       });
 
-      if (existingManualResult) {
-        skipped.push({
+      if (manualResult) {
+        skippedDetails.push({
           fixtureId: apiFixtureId,
-          reason:
-            "An equivalent manual result already exists; it was left unchanged",
+          reason: "Equivalent manual result left unchanged",
         });
         continue;
       }
 
-      result = await Result.create({
+      await Result.create({
         ...resultData,
         apiFootballFixtureId: apiFixtureId,
       });
     }
 
-    imported.push(result._id.toString());
+    importedOrUpdated++;
   }
 
   return {
-    requested: (response.response || []).length,
-    importedOrUpdated: imported.length,
-    skipped: skipped.length,
-    skippedDetails: skipped,
+    requested: items.length,
+    importedOrUpdated,
+    skipped: skippedDetails.length,
+    skippedDetails,
   };
 }
 
